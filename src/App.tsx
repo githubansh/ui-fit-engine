@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Check,
@@ -100,7 +100,7 @@ export default function App() {
           <Route path="/profile" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <ProfileScreen userId={userId ?? readyPlan.user_id} plan={readyPlan} onPlan={replacePlan} />}</RequirePlan>} />
           <Route path="/swap/:slotId" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <SwapScreen plan={readyPlan} onRefresh={() => loadPlan(readyPlan.id)} />}</RequirePlan>} />
           <Route path="/finish/:dayId" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <FinishScreen plan={readyPlan} onRefresh={() => loadPlan(readyPlan.id)} />}</RequirePlan>} />
-          <Route path="/coach" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <CoachScreen plan={readyPlan} userId={userId ?? readyPlan.user_id} onRefresh={() => loadPlan(readyPlan.id)} />}</RequirePlan>} />
+          <Route path="/coach" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <CoachScreen plan={readyPlan} userId={userId ?? readyPlan.user_id} onPlan={replacePlan} onRefresh={() => loadPlan(readyPlan.id)} />}</RequirePlan>} />
         </Routes>
       </main>
     </div>
@@ -133,9 +133,9 @@ export default function App() {
 
   function NavItem({ to, label }: { to: string; label: string }) {
     return (
-      <Link className="nav-pill" to={to}>
+      <NavLink className={({ isActive }) => (isActive ? "nav-pill active" : "nav-pill")} to={to}>
         {label}
-      </Link>
+      </NavLink>
     );
   }
 }
@@ -954,7 +954,7 @@ function FinishScreen({ plan, onRefresh }: { plan: Plan; onRefresh: () => Promis
   );
 }
 
-function CoachScreen({ plan, userId, onRefresh }: { plan: Plan; userId: number; onRefresh: () => Promise<void> }) {
+function CoachScreen({ plan, userId, onPlan, onRefresh }: { plan: Plan; userId: number; onPlan: (plan: Plan) => void; onRefresh: () => Promise<void> }) {
   const [message, setMessage] = useState("I only have 20 minutes today.");
   const [thread, setThread] = useState<Array<{ role: "user" | "coach"; text: string; tool?: string; source?: string }>>([]);
   const [busy, setBusy] = useState(false);
@@ -977,7 +977,14 @@ function CoachScreen({ plan, userId, onRefresh }: { plan: Plan; userId: number; 
         })),
       });
       setThread((items) => [...items, { role: "coach", text: response.message, tool: response.tool_results[0]?.tool, source: response.source }]);
-      await onRefresh();
+      const returnedPlan = response.tool_results
+        .map((item) => (item.result as { plan?: Plan | null }).plan)
+        .find((item): item is Plan => Boolean(item?.id));
+      if (returnedPlan) {
+        onPlan(returnedPlan);
+      } else {
+        await onRefresh();
+      }
     } finally {
       setBusy(false);
     }

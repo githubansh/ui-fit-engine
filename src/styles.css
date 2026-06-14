@@ -107,6 +107,12 @@ a {
   color: var(--text);
 }
 
+.nav-pill.active {
+  background: var(--teal);
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(5, 95, 95, 0.18);
+}
+
 .top-meta {
   display: flex;
   align-items: center;
