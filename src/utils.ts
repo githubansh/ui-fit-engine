@@ -42,7 +42,8 @@ export function focusLabel(focus: string) {
 }
 
 export function todayDay(plan: Plan | null): PlanDay | null {
-  return plan?.days[0] ?? null;
+  if (!plan?.days.length) return null;
+  return plan.days.find((day) => day.slots.some((slot) => slot.status !== "completed")) ?? plan.days[plan.days.length - 1];
 }
 
 export function firstImage(slot: PlanSlot | null) {
@@ -64,4 +65,34 @@ export function safetyText(plan: Plan | null) {
   const notes = plan?.params.feasibility_notes ?? [];
   if (notes.length > 0) return notes[0];
   return "FitEngine filtered this plan with your equipment, level, and safety rules.";
+}
+
+export function weekBalance(plan: Plan) {
+  const totals = {
+    Upper: 0,
+    Lower: 0,
+    Core: 0,
+    Cardio: 0,
+  };
+  const upperGroups = new Set(["chest", "back", "lower_back", "shoulders", "biceps", "triceps"]);
+  const lowerGroups = new Set(["quads", "posterior_chain", "calves"]);
+
+  for (const day of plan.days) {
+    for (const slot of day.slots) {
+      const groups = slot.exercise?.muscle_groups ?? [];
+      if (groups.some((group) => upperGroups.has(group))) totals.Upper += slot.sets;
+      if (groups.some((group) => lowerGroups.has(group))) totals.Lower += slot.sets;
+      if (groups.includes("abs")) totals.Core += slot.sets;
+    }
+  }
+
+  const conditioning = plan.params.conditioning_blocks ?? [];
+  totals.Cardio = conditioning.reduce((total, item) => total + (Number(item.minutes) || 0), 0);
+
+  const max = Math.max(...Object.values(totals), 1);
+  return Object.entries(totals).map(([label, value]) => ({
+    label,
+    value,
+    percent: Math.round((value / max) * 100),
+  }));
 }

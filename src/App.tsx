@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { api, type SetupPayload } from "./api";
 import type { Alternative, Exercise, Goal, IntakePreview, Level, MetaOptions, Plan, PlanDay, PlanSlot, ProgressSummary, User } from "./types";
-import { clearSession, focusLabel, getSession, goalLabel, minutesForDay, safetyText, saveSession, todayDay } from "./utils";
+import { clearSession, focusLabel, getSession, goalLabel, minutesForDay, safetyText, saveSession, todayDay, weekBalance } from "./utils";
 
 const defaultEquipment = ["body only", "dumbbell", "machine"];
 const goalOptions: Array<{ value: Goal; label: string }> = [
@@ -73,8 +73,10 @@ export default function App() {
   }
 
   function replacePlan(nextPlan: Plan) {
-    saveSession(nextPlan.user_id, nextPlan.id);
-    setSessionState({ userId: nextPlan.user_id, planId: nextPlan.id });
+    if (nextPlan.id !== planId) {
+      saveSession(nextPlan.user_id, nextPlan.id);
+      setSessionState({ userId: nextPlan.user_id, planId: nextPlan.id });
+    }
     setPlan(nextPlan);
   }
 
@@ -163,7 +165,7 @@ function SetupScreen({ onReady }: { onReady: (userId: number, planId: number, pl
   const [days, setDays] = useState(4);
   const [minutes, setMinutes] = useState(35);
   const [equipment, setEquipment] = useState(defaultEquipment);
-  const [injury, setInjury] = useState<string>("knee_pain");
+  const [injuries, setInjuries] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -178,7 +180,7 @@ function SetupScreen({ onReady }: { onReady: (userId: number, planId: number, pl
         days_per_week: days,
         minutes_per_session: minutes,
         equipment,
-        injuries: injury === "none" ? [] : [{ injury_code: injury, severity: "moderate" }],
+        injuries: injuries.map((injury_code) => ({ injury_code, severity: "moderate" })),
       };
       const user = await api.createUser(payload);
       const plan = await api.generatePlan(user.id);
@@ -191,8 +193,8 @@ function SetupScreen({ onReady }: { onReady: (userId: number, planId: number, pl
     }
   }
 
-  const equipmentOptions = ["body only", "dumbbell", "machine", "cable", "bands", "pull-up bar"];
-  const injuryOptions = [{ code: "none", display_name: "None" }, ...(meta?.injuries ?? []).filter((item) => ["knee_pain", "lower_back_pain", "shoulder_impingement", "wrist_pain"].includes(item.code))];
+  const equipmentOptions = meta?.equipment ?? defaultEquipment;
+  const injuryOptions = meta?.injuries ?? [];
 
   return (
     <section className="setup-shell">
@@ -241,8 +243,11 @@ function SetupScreen({ onReady }: { onReady: (userId: number, planId: number, pl
           </Field>
           <Field title="Pain or injury">
             <div className="inline wrap">
+              <button className={injuries.length === 0 ? "chip selected" : "chip"} onClick={() => setInjuries([])}>
+                None
+              </button>
               {injuryOptions.map((item) => (
-                <button className={injury === item.code ? "chip selected warn-chip" : "chip"} onClick={() => setInjury(item.code)} key={item.code}>
+                <button className={injuries.includes(item.code) ? "chip selected warn-chip" : "chip"} onClick={() => setInjuries(toggle(injuries, item.code))} key={item.code}>
                   {item.display_name}
                 </button>
               ))}
@@ -262,7 +267,7 @@ function SetupScreen({ onReady }: { onReady: (userId: number, planId: number, pl
           <SummaryRow label="Level" value={focusLabel(level)} />
           <SummaryRow label="Schedule" value={`${days} days, ${minutes} min`} />
           <SummaryRow label="Equipment" value={equipment.map(labelEquipment).join(", ")} />
-          <div className="safety-note"><ShieldCheck size={18} /> {injury === "none" ? "No injury filter selected" : "Safety filters will run before scoring"}</div>
+          <div className="safety-note"><ShieldCheck size={18} /> {injuries.length === 0 ? "No injury filter selected" : "Safety filters will run before scoring"}</div>
         </aside>
       </div>
     </section>
@@ -338,6 +343,9 @@ function TypeScreen({ onReady }: { onReady: (userId: number, planId: number, pla
           <SummaryRow label="Goal" value={goalLabel(inferred.goal)} />
           <SummaryRow label="Schedule" value={`${inferred.days_per_week} days, ${inferred.minutes_per_session} min`} />
           <SummaryRow label="Equipment" value={inferred.equipment.map(labelEquipment).join(", ")} />
+          {!preview && inferred.equipment.length === 1 && inferred.equipment[0] === "body only" && (
+            <p className="tiny-note">No equipment detected - defaulting to bodyweight. Switch to Guided setup to add your gear.</p>
+          )}
           <SummaryRow label="Safety" value={preview?.injuries.map((item) => focusLabel(item.injury_code.replace("_pain", ""))).join(", ") || "Not parsed yet"} />
           <SummaryRow label="Avoid" value={preview?.exclusions.map((item) => item.name).join(", ") || "None"} />
           {preview?.medical_warning && <div className="error">{preview.medical_warning}</div>}
@@ -345,7 +353,7 @@ function TypeScreen({ onReady }: { onReady: (userId: number, planId: number, pla
           <div className="safety-note">Unsupported injuries are not guessed.</div>
           <div className="actions right">
             <button className="secondary" onClick={parse} disabled={busy}>Refresh</button>
-            <button className="primary" onClick={confirm} disabled={busy || !preview || Boolean(preview.medical_warning)}>Confirm and generate</button>
+            <button className="primary" onClick={confirm} disabled={busy || !preview}>{preview?.medical_warning ? "Continue anyway" : "Confirm and generate"}</button>
           </div>
         </aside>
       </div>
@@ -403,9 +411,9 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
       setDays(updated.days_per_week);
       setMinutes(updated.minutes_per_session);
       setEquipment(updated.equipment);
-      const nextPlan = await api.generatePlan(userId, plan.week_index);
+      const nextPlan = await api.adaptPlan(plan.id);
       onPlan(nextPlan);
-      setNotice("Profile saved and plan regenerated.");
+      setNotice("Profile saved and next week adapted from the current plan.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile");
     } finally {
@@ -437,9 +445,9 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
         setError(result.medical_warning);
         return;
       }
-      const nextPlan = await api.generatePlan(userId, plan.week_index);
+      const nextPlan = await api.adaptPlan(plan.id);
       onPlan(nextPlan);
-      setNotice("Intake saved and plan regenerated.");
+      setNotice("Intake saved and next week adapted from the current plan.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save intake");
     } finally {
@@ -449,7 +457,7 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
 
   if (error && !user) return <EmptyState title={error} />;
   if (!user) return <EmptyState title="Loading profile..." />;
-  const equipmentOptions = (meta?.equipment ?? defaultEquipment).filter((item) => ["body only", "dumbbell", "machine", "cable", "bands", "pull-up bar"].includes(item));
+  const equipmentOptions = meta?.equipment ?? defaultEquipment;
 
   return (
     <section className="profile-layout">
@@ -511,7 +519,7 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
             </div>
           </Field>
           <div className="actions right">
-            <button className="primary" onClick={saveRules} disabled={busy}>{busy ? "Saving..." : "Save and regenerate"}</button>
+            <button className="primary" onClick={saveRules} disabled={busy}>{busy ? "Saving..." : "Save and adapt"}</button>
           </div>
           <div className="intake-editor">
             <h2>Update by text</h2>
@@ -519,7 +527,7 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
             <textarea className="small-textarea" value={intakeText} onChange={(event) => setIntakeText(event.target.value)} />
             <div className="actions">
               <button className="secondary" onClick={previewIntake} disabled={busy}>Preview</button>
-              <button className="primary" onClick={saveIntake} disabled={busy}>Save intake and regenerate</button>
+              <button className="primary" onClick={saveIntake} disabled={busy}>Save intake and adapt</button>
             </div>
             {preview && (
               <div className="preview-box">
@@ -572,10 +580,13 @@ function ExploreScreen() {
   }
 
   useEffect(() => {
-    search();
-  }, []);
+    const timer = window.setTimeout(() => {
+      search();
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [query, level, equipment.join("|")]);
 
-  const equipmentOptions = (meta?.equipment ?? defaultEquipment).filter((item) => ["body only", "dumbbell", "machine", "cable", "bands", "pull-up bar"].includes(item));
+  const equipmentOptions = meta?.equipment ?? defaultEquipment;
 
   return (
     <section className="explore-layout">
@@ -695,6 +706,10 @@ function TodayScreen({ plan }: { plan: Plan }) {
   const [selected, setSelected] = useState<PlanSlot | null>(day.slots[0] ?? null);
 
   useEffect(() => {
+    setDay(todayDay(plan)!);
+  }, [plan]);
+
+  useEffect(() => {
     setSelected(day.slots[0] ?? null);
   }, [day.id]);
 
@@ -720,6 +735,7 @@ function TodayScreen({ plan }: { plan: Plan }) {
         </div>
         <WorkoutList day={day} selected={selected} onSelect={setSelected} />
         <div className="panel note-strip"><ShieldCheck size={18} /> {safetyText(plan)}</div>
+        {(plan.params.feasibility_notes ?? []).slice(1, 4).map((note) => <p className="tiny-note" key={note}>{note}</p>)}
       </div>
       <aside className="panel detail-panel">
         <ExerciseMedia exercise={selected?.exercise ?? null} />
@@ -762,6 +778,7 @@ function PlanScreen({ plan, onPlan }: { plan: Plan; onPlan: (plan: Plan) => void
       setBusy(false);
     }
   }
+  const balance = weekBalance(plan);
   return (
     <section className="content-grid">
       <div className="main-column">
@@ -791,10 +808,10 @@ function PlanScreen({ plan, onPlan }: { plan: Plan; onPlan: (plan: Plan) => void
         <SummaryRow label="Rest" value={selected ? `${selected.rest_sec} sec between sets` : "-"} />
         <SummaryRow label="Effort" value={selected ? `RPE ${selected.rpe_target} / 10` : "-"} />
         <h2>Week balance</h2>
-        {["Upper", "Lower", "Core", "Cardio"].map((label, index) => (
-          <div className="bar-row" key={label}>
-            <span>{label}</span>
-            <div className="bar"><span style={{ width: `${[76, 68, 54, 42][index]}%` }} /></div>
+        {balance.map((item) => (
+          <div className="bar-row" key={item.label}>
+            <span>{item.label}</span>
+            <div className="bar"><span style={{ width: `${item.percent}%` }} /></div>
           </div>
         ))}
         <div className="safety-note"><ShieldCheck size={18} /> Generate next week uses completed/skipped workouts and RPE. Without logs, it may look similar.</div>
@@ -869,7 +886,7 @@ function SwapScreen({ plan, onRefresh }: { plan: Plan; onRefresh: () => Promise<
           <p>{selected ? `${selected.exercise.name} targets ${selected.primary_group ?? "similar muscles"} and matches your available equipment.` : "Choose an option to see details."}</p>
           <SummaryRow label="Semantic match" value={selected ? `${Math.round(selected.similarity * 100)}%` : "-"} />
           <SummaryRow label="Utility" value={selected ? String(selected.utility) : "-"} />
-          <SummaryRow label="Time fit" value="No set reduction needed" />
+          <SummaryRow label="Time fit" value={selected ? swapTimeFit(slot, selected) : "-"} />
           <div className="actions stretch">
             <button className="secondary" onClick={() => navigate("/today")}>Cancel</button>
             <button className="primary" onClick={replace} disabled={!selected || busy}>{busy ? "Replacing..." : "Replace exercise"}</button>
@@ -884,11 +901,15 @@ function FinishScreen({ plan, onRefresh }: { plan: Plan; onRefresh: () => Promis
   const navigate = useNavigate();
   const { dayId } = useParams();
   const day = plan.days.find((item) => item.id === Number(dayId)) ?? plan.days[0];
-  const [completed, setCompleted] = useState(() => new Set(day.slots.map((slot) => slot.id)));
+  const [completed, setCompleted] = useState<Set<number>>(new Set());
   const [rpe, setRpe] = useState(7);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCompleted(new Set(day.slots.map((slot) => slot.id)));
+  }, [day.id, day.slots.length]);
 
   async function save() {
     setBusy(true);
@@ -960,9 +981,9 @@ function CoachScreen({ plan, userId, onPlan, onRefresh }: { plan: Plan; userId: 
   const [busy, setBusy] = useState(false);
   const day = todayDay(plan)!;
 
-  async function send() {
-    if (!message.trim()) return;
-    const outgoing = message;
+  async function send(nextMessage?: string) {
+    const outgoing = (nextMessage ?? message).trim();
+    if (!outgoing || busy) return;
     const priorThread = thread;
     setThread((items) => [...items, { role: "user", text: outgoing }]);
     setMessage("");
@@ -994,8 +1015,8 @@ function CoachScreen({ plan, userId, onPlan, onRefresh }: { plan: Plan; userId: 
     <section className="coach-grid">
       <aside className="panel">
         <h2>Quick actions</h2>
-        {["I only have 20 minutes today", "Show my current plan", "How hard is RPE 7?", "I have a head injury", "How do I swap an exercise?"].map((item) => (
-          <button className="quick-action" onClick={() => setMessage(item)} key={item}>{item}</button>
+        {["I only have 20 minutes today", "I have a knee injury", "Show my current plan", "How hard is RPE 7?", "I have a head injury", "How do I swap an exercise?"].map((item) => (
+          <button className="quick-action" onClick={() => send(item)} disabled={busy} key={item}>{item}</button>
         ))}
       </aside>
       <div className="panel chat-panel">
@@ -1007,13 +1028,12 @@ function CoachScreen({ plan, userId, onPlan, onRefresh }: { plan: Plan; userId: 
             <div className={item.role === "user" ? "bubble user" : "bubble coach"} key={`${item.role}-${index}`}>
               <p>{item.text}</p>
               {item.tool && <CoachAction tool={item.tool} />}
-              {!item.tool && item.source === "fallback" && <span className="tool-card">Local fallback</span>}
             </div>
           ))}
         </div>
         <div className="chat-input">
           <input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask about your plan..." onKeyDown={(event) => event.key === "Enter" && send()} />
-          <button className="primary" onClick={send} disabled={busy}><MessageSquare size={16} /> Send</button>
+          <button className="primary" onClick={() => send()} disabled={busy}><MessageSquare size={16} /> Send</button>
         </div>
       </div>
       <aside className="panel summary-panel">
@@ -1035,6 +1055,7 @@ function CoachAction({ tool }: { tool: string }) {
     swap_exercise: { label: "Open today", to: "/today" },
     log_feedback: { label: "Open progress", to: "/progress" },
     explain_slot: { label: "Open today", to: "/today" },
+    update_safety_profile: { label: "Open updated plan", to: "/today" },
   };
   const action = actions[tool];
   if (!action) return null;
@@ -1227,18 +1248,35 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
 }
 
+function swapTimeFit(slot: PlanSlot, selected: Alternative) {
+  const currentPerSet = slot.exercise?.mechanic === "compound" ? 4 : 3;
+  const nextPerSet = selected.exercise.mechanic === "compound" ? 4 : 3;
+  const current = slot.sets * currentPerSet;
+  const next = slot.sets * nextPerSet;
+  if (next === current) return `About ${next} min for this slot`;
+  const delta = Math.abs(next - current);
+  return next > current ? `About ${next} min, +${delta} min vs current` : `About ${next} min, ${delta} min quicker`;
+}
+
 function inferSetup(text: string, meta: MetaOptions | null): SetupPayload {
   const lower = text.toLowerCase();
   const goal: Goal = lower.includes("muscle") ? "hypertrophy" : lower.includes("strong") ? "strength" : lower.includes("move") ? "mobility" : "fat_loss";
   const days = Number(lower.match(/(\d+)\s*days?/)?.[1]) || 4;
   const minutes = Number(lower.match(/(\d+)\s*(min|minutes)/)?.[1]) || 35;
   const equipment = (meta?.equipment ?? defaultEquipment).filter((item) => {
-    if (item === "body only") return lower.includes("bodyweight") || lower.includes("body weight");
+    if (item === "body only") return lower.includes("bodyweight") || lower.includes("body weight") || lower.includes("no equipment");
     if (item === "dumbbell") return lower.includes("dumbbell");
+    if (item === "barbell") return lower.includes("barbell");
     if (item === "machine") return lower.includes("machine");
     if (item === "cable") return lower.includes("cable");
+    if (item === "kettlebells") return lower.includes("kettlebell");
     if (item === "bands") return lower.includes("band");
+    if (item === "medicine ball") return lower.includes("medicine ball");
+    if (item === "exercise ball") return lower.includes("exercise ball") || lower.includes("stability ball");
+    if (item === "foam roll") return lower.includes("foam roll") || lower.includes("foam roller");
+    if (item === "e-z curl bar") return lower.includes("ez curl") || lower.includes("e-z curl");
     if (item === "pull-up bar") return lower.includes("pull-up") || lower.includes("pullup");
+    if (item === "other") return lower.includes("other equipment");
     return false;
   });
   return {
@@ -1247,7 +1285,7 @@ function inferSetup(text: string, meta: MetaOptions | null): SetupPayload {
     goal,
     days_per_week: Math.min(6, Math.max(2, days)),
     minutes_per_session: Math.min(75, Math.max(20, minutes)),
-    equipment: equipment.length ? equipment : defaultEquipment,
+    equipment: equipment.length ? equipment : ["body only"],
     injuries: [],
   };
 }

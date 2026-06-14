@@ -32,3 +32,8 @@ Set this environment variable in Vercel or Netlify:
 VITE_API_BASE_URL=https://your-backend-url
 ```
 
+## Prototype Limitation
+
+FitEngine stores the active `userId` and `planId` in browser localStorage. Use
+one browser tab during demos; multi-tab profile or plan edits are not
+synchronized in real time.
