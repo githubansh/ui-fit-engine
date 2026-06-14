@@ -69,6 +69,17 @@ export const api = {
       body: JSON.stringify({ user_id: userId, week_index: weekIndex }),
     }),
   getPlan: (planId: number) => request<Plan>(`/plans/${planId}`),
+  listPlans: (userId: number) => request<Plan[]>(`/plans/user/${userId}`),
+  regeneratePlan: (planId: number) =>
+    request<Plan>(`/plans/${planId}/regenerate`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  activatePlan: (planId: number) =>
+    request<Plan>(`/plans/${planId}/activate`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
   searchExercises: (params: { q?: string; muscle?: string; equipment?: string[]; level?: string }) => {
     const search = new URLSearchParams();
     if (params.q) search.set("q", params.q);

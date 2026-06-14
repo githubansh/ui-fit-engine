@@ -411,9 +411,9 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
       setDays(updated.days_per_week);
       setMinutes(updated.minutes_per_session);
       setEquipment(updated.equipment);
-      const nextPlan = await api.adaptPlan(plan.id);
+      const nextPlan = await api.regeneratePlan(plan.id);
       onPlan(nextPlan);
-      setNotice("Profile saved and next week adapted from the current plan.");
+      setNotice(`Profile saved. Week ${nextPlan.week_index} v${nextPlan.version} is now active.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save profile");
     } finally {
@@ -445,9 +445,9 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
         setError(result.medical_warning);
         return;
       }
-      const nextPlan = await api.adaptPlan(plan.id);
+      const nextPlan = await api.regeneratePlan(plan.id);
       onPlan(nextPlan);
-      setNotice("Intake saved and next week adapted from the current plan.");
+      setNotice(`Intake saved. Week ${nextPlan.week_index} v${nextPlan.version} is now active.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save intake");
     } finally {
@@ -519,7 +519,7 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
             </div>
           </Field>
           <div className="actions right">
-            <button className="primary" onClick={saveRules} disabled={busy}>{busy ? "Saving..." : "Save and adapt"}</button>
+            <button className="primary" onClick={saveRules} disabled={busy}>{busy ? "Saving..." : "Save and update week"}</button>
           </div>
           <div className="intake-editor">
             <h2>Update by text</h2>
@@ -527,7 +527,7 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
             <textarea className="small-textarea" value={intakeText} onChange={(event) => setIntakeText(event.target.value)} />
             <div className="actions">
               <button className="secondary" onClick={previewIntake} disabled={busy}>Preview</button>
-              <button className="primary" onClick={saveIntake} disabled={busy}>Save intake and adapt</button>
+              <button className="primary" onClick={saveIntake} disabled={busy}>Save intake and update week</button>
             </div>
             {preview && (
               <div className="preview-box">
@@ -547,7 +547,7 @@ function ProfileScreen({ userId, plan, onPlan }: { userId: number; plan: Plan; o
           <SummaryRow label="Level" value={focusLabel(level)} />
           <SummaryRow label="Schedule" value={`${days} days, ${minutes} min`} />
           <SummaryRow label="Equipment" value={equipment.map(labelEquipment).join(", ")} />
-          <SummaryRow label="Current plan" value={`Week ${plan.week_index}`} />
+          <SummaryRow label="Current plan" value={`Week ${plan.week_index} v${plan.version}`} />
           <div className="safety-note"><ShieldCheck size={18} /> This profile is saved in PostgreSQL as user #{user.id}.</div>
         </aside>
       </div>
@@ -676,7 +676,7 @@ function ProgressScreen({ userId }: { userId: number }) {
           {summary.recent_sessions.map((session) => (
             <div className="session-row" key={session.id}>
               <div>
-                <strong>Week {session.week_index}, Day {session.day_index}</strong>
+                <strong>Week {session.week_index} v{session.version}, Day {session.day_index}</strong>
                 <small>{focusLabel(session.focus)} - {formatDate(session.completed_at)}</small>
               </div>
               <span>{session.completed_count} done</span>
@@ -704,6 +704,7 @@ function ProgressScreen({ userId }: { userId: number }) {
 function TodayScreen({ plan }: { plan: Plan }) {
   const [day, setDay] = useState(todayDay(plan)!);
   const [selected, setSelected] = useState<PlanSlot | null>(day.slots[0] ?? null);
+  const upcoming = plan.days.filter((item) => item.id !== day.id).slice(0, 3);
 
   useEffect(() => {
     setDay(todayDay(plan)!);
@@ -726,13 +727,6 @@ function TodayScreen({ plan }: { plan: Plan }) {
             <Link className="primary" to={`/finish/${day.id}`}><Check size={16} /> Start</Link>
           </div>
         </div>
-        <div className="day-tabs">
-          {plan.days.map((item) => (
-            <button className={day.id === item.id ? "day-tab selected" : "day-tab"} onClick={() => setDay(item)} key={item.id}>
-              {item.day_index === 1 ? "Today" : `Day ${item.day_index}`}<span>{focusLabel(item.focus)}</span>
-            </button>
-          ))}
-        </div>
         <WorkoutList day={day} selected={selected} onSelect={setSelected} />
         <div className="panel note-strip"><ShieldCheck size={18} /> {safetyText(plan)}</div>
         {(plan.params.feasibility_notes ?? []).slice(1, 4).map((note) => <p className="tiny-note" key={note}>{note}</p>)}
@@ -751,16 +745,33 @@ function TodayScreen({ plan }: { plan: Plan }) {
           {selected && <Link className="secondary" to={`/swap/${selected.id}`}>Swap exercise</Link>}
           {selected && <Link className="primary" to={`/finish/${day.id}`}>Mark as done</Link>}
         </div>
+        {upcoming.length > 0 && (
+          <>
+            <h2>Upcoming</h2>
+            {upcoming.map((item) => (
+              <SummaryRow label={`Day ${item.day_index}`} value={`${focusLabel(item.focus)} - ${item.slots.length} exercises`} key={item.id} />
+            ))}
+          </>
+        )}
       </aside>
     </section>
   );
 }
 
 function PlanScreen({ plan, onPlan }: { plan: Plan; onPlan: (plan: Plan) => void }) {
+  const [viewPlan, setViewPlan] = useState(plan);
+  const [history, setHistory] = useState<Plan[]>([plan]);
   const [day, setDay] = useState(plan.days[0]);
   const [selected, setSelected] = useState<PlanSlot | null>(day.slots[0] ?? null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    setViewPlan(plan);
+    setDay(plan.days[0]);
+    setSelected(plan.days[0]?.slots[0] ?? null);
+    api.listPlans(plan.user_id).then(setHistory).catch(() => setHistory([plan]));
+  }, [plan.id]);
 
   useEffect(() => {
     setSelected(day.slots[0] ?? null);
@@ -771,27 +782,66 @@ function PlanScreen({ plan, onPlan }: { plan: Plan; onPlan: (plan: Plan) => void
     try {
       const next = await api.adaptPlan(plan.id);
       onPlan(next);
+      setViewPlan(next);
       setDay(next.days[0]);
       setSelected(next.days[0]?.slots[0] ?? null);
-      setNotice(`Generated Week ${next.week_index} from your logged feedback.`);
+      setHistory(await api.listPlans(next.user_id));
+      setNotice(`Generated Week ${next.week_index} v${next.version} from your logged feedback.`);
     } finally {
       setBusy(false);
     }
   }
-  const balance = weekBalance(plan);
+
+  async function activateViewedPlan() {
+    setBusy(true);
+    try {
+      const active = await api.activatePlan(viewPlan.id);
+      onPlan(active);
+      setViewPlan(active);
+      setDay(active.days[0]);
+      setHistory(await api.listPlans(active.user_id));
+      setNotice(`Activated Week ${active.week_index} v${active.version}.`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function choosePlan(planId: number) {
+    const next = history.find((item) => item.id === planId);
+    if (!next) return;
+    setViewPlan(next);
+    setDay(next.days[0]);
+    setSelected(next.days[0]?.slots[0] ?? null);
+  }
+
+  const balance = weekBalance(viewPlan);
+  const viewingActive = viewPlan.id === plan.id;
   return (
     <section className="content-grid">
       <div className="main-column">
         <div className="page-title">
           <div>
-            <h1>Your week</h1>
-            <p>{plan.days.length} days - {focusLabel(plan.split)} - safety filtered</p>
+            <h1>Week {viewPlan.week_index} v{viewPlan.version}</h1>
+            <p>{viewPlan.days.length} days - {focusLabel(viewPlan.split)} - {viewingActive ? "active plan" : "history version"}</p>
           </div>
-          <button className="secondary" onClick={adapt} disabled={busy}><RefreshCw size={16} /> {busy ? "Generating..." : "Generate next week"}</button>
+          <div className="title-actions">
+            {!viewingActive && <button className="secondary" onClick={activateViewedPlan} disabled={busy}>Use this version</button>}
+            <button className="secondary" onClick={adapt} disabled={busy || !viewingActive}><RefreshCw size={16} /> {busy ? "Generating..." : "Generate next week"}</button>
+          </div>
         </div>
         {notice && <p className="success">{notice}</p>}
+        <div className="panel note-strip">
+          <span>Viewing</span>
+          <select value={viewPlan.id} onChange={(event) => choosePlan(Number(event.target.value))}>
+            {history.map((item) => (
+              <option value={item.id} key={item.id}>
+                Week {item.week_index} v{item.version}{item.status === "active" ? " - active" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="day-tabs">
-          {plan.days.map((item) => (
+          {viewPlan.days.map((item) => (
             <button className={day.id === item.id ? "day-tab selected" : "day-tab"} onClick={() => setDay(item)} key={item.id}>
               Day {item.day_index}<span>{focusLabel(item.focus)}</span>
             </button>
@@ -815,7 +865,7 @@ function PlanScreen({ plan, onPlan }: { plan: Plan; onPlan: (plan: Plan) => void
           </div>
         ))}
         <div className="safety-note"><ShieldCheck size={18} /> Generate next week uses completed/skipped workouts and RPE. Without logs, it may look similar.</div>
-        {(plan.params.feasibility_notes ?? []).slice(0, 3).map((note) => <p className="tiny-note" key={note}>{note}</p>)}
+        {(viewPlan.params.feasibility_notes ?? []).slice(0, 3).map((note) => <p className="tiny-note" key={note}>{note}</p>)}
       </aside>
     </section>
   );

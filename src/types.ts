@@ -69,6 +69,7 @@ export type Plan = {
   id: number;
   user_id: number;
   week_index: number;
+  version: number;
   split: string;
   status: string;
   params: {
@@ -115,6 +116,7 @@ export type ProgressSession = {
   plan_id: number;
   plan_day_id: number;
   week_index: number;
+  version: number;
   day_index: number;
   focus: string;
   completed_at: string;
