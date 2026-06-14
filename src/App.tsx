@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { api, type SetupPayload } from "./api";
 import type { Alternative, Exercise, Goal, IntakePreview, Level, MetaOptions, Plan, PlanDay, PlanSlot, ProgressSummary, User } from "./types";
-import { clearSession, focusLabel, getSession, goalLabel, minutesForDay, safetyText, saveSession, todayDay, weekBalance } from "./utils";
+import { clearSession, focusLabel, getSession, goalLabel, isDayDone, minutesForDay, safetyText, saveSession, todayDay, weekBalance } from "./utils";
 
 const defaultEquipment = ["body only", "dumbbell", "machine"];
 const goalOptions: Array<{ value: Goal; label: string }> = [
@@ -705,6 +705,7 @@ function TodayScreen({ plan }: { plan: Plan }) {
   const [day, setDay] = useState(todayDay(plan)!);
   const [selected, setSelected] = useState<PlanSlot | null>(day.slots[0] ?? null);
   const upcoming = plan.days.filter((item) => item.id !== day.id).slice(0, 3);
+  const dayDone = isDayDone(day);
 
   useEffect(() => {
     setDay(todayDay(plan)!);
@@ -724,7 +725,7 @@ function TodayScreen({ plan }: { plan: Plan }) {
           </div>
           <div className="title-actions">
             <Link className="secondary" to="/coach"><TimerReset size={16} /> Need less time?</Link>
-            <Link className="primary" to={`/finish/${day.id}`}><Check size={16} /> Start</Link>
+            <Link className="primary" to={dayDone ? "/progress" : `/finish/${day.id}`}><Check size={16} /> {dayDone ? "Completed" : "Start"}</Link>
           </div>
         </div>
         <WorkoutList day={day} selected={selected} onSelect={setSelected} />
@@ -743,7 +744,7 @@ function TodayScreen({ plan }: { plan: Plan }) {
         </div>
         <div className="actions stretch">
           {selected && <Link className="secondary" to={`/swap/${selected.id}`}>Swap exercise</Link>}
-          {selected && <Link className="primary" to={`/finish/${day.id}`}>Mark as done</Link>}
+          {selected && <Link className="primary" to={dayDone ? "/progress" : `/finish/${day.id}`}>{dayDone ? "Completed" : "Mark as done"}</Link>}
         </div>
         {upcoming.length > 0 && (
           <>
@@ -1016,7 +1017,7 @@ function FinishScreen({ plan, onRefresh }: { plan: Plan; onRefresh: () => Promis
           {error && <p className="error">{error}</p>}
           <div className="actions">
             <button className="secondary" onClick={() => navigate("/today")}>Back</button>
-            <button className="primary" onClick={save} disabled={busy || saved}>{saved ? "Already saved" : busy ? "Saving..." : "Save workout"}</button>
+            <button className="primary" onClick={saved ? () => navigate("/today") : save} disabled={busy}>{saved ? "Completed" : busy ? "Saving..." : "Save workout"}</button>
           </div>
         </div>
         <aside className="panel summary-panel">

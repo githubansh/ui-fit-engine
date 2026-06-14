@@ -43,7 +43,12 @@ export function focusLabel(focus: string) {
 
 export function todayDay(plan: Plan | null): PlanDay | null {
   if (!plan?.days.length) return null;
-  return plan.days.find((day) => day.slots.some((slot) => slot.status !== "completed")) ?? plan.days[plan.days.length - 1];
+  return plan.days.find((day) => !isDayDone(day)) ?? plan.days[plan.days.length - 1];
+}
+
+export function isDayDone(day: PlanDay | null) {
+  if (!day?.slots.length) return false;
+  return day.slots.every((slot) => ["completed", "skipped", "deferred"].includes(slot.status));
 }
 
 export function firstImage(slot: PlanSlot | null) {
