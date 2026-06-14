@@ -955,10 +955,13 @@ function FinishScreen({ plan, onRefresh }: { plan: Plan; onRefresh: () => Promis
   const [rpe, setRpe] = useState(7);
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setCompleted(new Set(day.slots.map((slot) => slot.id)));
+    setSaved(false);
+    setError(null);
   }, [day.id, day.slots.length]);
 
   async function save() {
@@ -976,7 +979,10 @@ function FinishScreen({ plan, onRefresh }: { plan: Plan; onRefresh: () => Promis
       await onRefresh();
       navigate("/today");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save workout");
+      const message = err instanceof Error ? err.message : "Could not save workout";
+      const alreadySaved = message.includes("already has a logged session") || message.includes("already been saved");
+      setSaved(alreadySaved);
+      setError(alreadySaved ? "This workout has already been saved." : message);
     } finally {
       setBusy(false);
     }
@@ -1010,7 +1016,7 @@ function FinishScreen({ plan, onRefresh }: { plan: Plan; onRefresh: () => Promis
           {error && <p className="error">{error}</p>}
           <div className="actions">
             <button className="secondary" onClick={() => navigate("/today")}>Back</button>
-            <button className="primary" onClick={save} disabled={busy}>{busy ? "Saving..." : "Save workout"}</button>
+            <button className="primary" onClick={save} disabled={busy || saved}>{saved ? "Already saved" : busy ? "Saving..." : "Save workout"}</button>
           </div>
         </div>
         <aside className="panel summary-panel">
