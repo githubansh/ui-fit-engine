@@ -93,14 +93,14 @@ export default function App() {
           <Route path="/" element={!sessionReady ? <EmptyState title="Loading your plan..." /> : plan ? <Navigate to="/today" replace /> : <Navigate to="/setup" replace />} />
           <Route path="/setup" element={<SetupScreen onReady={remember} />} />
           <Route path="/type" element={<TypeScreen onReady={remember} />} />
-          <Route path="/today" element={<RequirePlan plan={plan} ready={sessionReady}><TodayScreen plan={plan!} /></RequirePlan>} />
-          <Route path="/plan" element={<RequirePlan plan={plan} ready={sessionReady}><PlanScreen plan={plan!} onPlan={replacePlan} /></RequirePlan>} />
-          <Route path="/progress" element={<RequirePlan plan={plan} ready={sessionReady}><ProgressScreen userId={userId ?? plan!.user_id} /></RequirePlan>} />
+          <Route path="/today" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <TodayScreen plan={readyPlan} />}</RequirePlan>} />
+          <Route path="/plan" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <PlanScreen plan={readyPlan} onPlan={replacePlan} />}</RequirePlan>} />
+          <Route path="/progress" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <ProgressScreen userId={userId ?? readyPlan.user_id} />}</RequirePlan>} />
           <Route path="/explore" element={<ExploreScreen />} />
-          <Route path="/profile" element={<RequirePlan plan={plan} ready={sessionReady}><ProfileScreen userId={userId ?? plan!.user_id} plan={plan!} onPlan={replacePlan} /></RequirePlan>} />
-          <Route path="/swap/:slotId" element={<RequirePlan plan={plan} ready={sessionReady}><SwapScreen plan={plan!} onRefresh={() => loadPlan(plan!.id)} /></RequirePlan>} />
-          <Route path="/finish/:dayId" element={<RequirePlan plan={plan} ready={sessionReady}><FinishScreen plan={plan!} onRefresh={() => loadPlan(plan!.id)} /></RequirePlan>} />
-          <Route path="/coach" element={<RequirePlan plan={plan} ready={sessionReady}><CoachScreen plan={plan!} userId={userId ?? plan!.user_id} onRefresh={() => loadPlan(plan!.id)} /></RequirePlan>} />
+          <Route path="/profile" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <ProfileScreen userId={userId ?? readyPlan.user_id} plan={readyPlan} onPlan={replacePlan} />}</RequirePlan>} />
+          <Route path="/swap/:slotId" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <SwapScreen plan={readyPlan} onRefresh={() => loadPlan(readyPlan.id)} />}</RequirePlan>} />
+          <Route path="/finish/:dayId" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <FinishScreen plan={readyPlan} onRefresh={() => loadPlan(readyPlan.id)} />}</RequirePlan>} />
+          <Route path="/coach" element={<RequirePlan plan={plan} ready={sessionReady}>{(readyPlan) => <CoachScreen plan={readyPlan} userId={userId ?? readyPlan.user_id} onRefresh={() => loadPlan(readyPlan.id)} />}</RequirePlan>} />
         </Routes>
       </main>
     </div>
@@ -140,10 +140,10 @@ export default function App() {
   }
 }
 
-function RequirePlan({ plan, ready, children }: { plan: Plan | null; ready: boolean; children: JSX.Element }) {
+function RequirePlan({ plan, ready, children }: { plan: Plan | null; ready: boolean; children: (plan: Plan) => JSX.Element }) {
   if (!ready) return <EmptyState title="Loading your plan..." />;
   if (!plan) return <Navigate to="/setup" replace />;
-  return children;
+  return children(plan);
 }
 
 function useMeta() {
