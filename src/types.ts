@@ -62,6 +62,7 @@ export type PlanDay = {
   id: number;
   day_index: number;
   focus: string;
+  logged?: boolean;
   slots: PlanSlot[];
 };
 

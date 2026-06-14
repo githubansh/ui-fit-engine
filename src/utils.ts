@@ -48,6 +48,7 @@ export function todayDay(plan: Plan | null): PlanDay | null {
 
 export function isDayDone(day: PlanDay | null) {
   if (!day?.slots.length) return false;
+  if (day.logged) return true;
   return day.slots.every((slot) => ["completed", "skipped", "deferred"].includes(slot.status));
 }
 

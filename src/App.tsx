@@ -982,6 +982,9 @@ function FinishScreen({ plan, onRefresh }: { plan: Plan; onRefresh: () => Promis
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not save workout";
       const alreadySaved = message.includes("already has a logged session") || message.includes("already been saved");
+      if (alreadySaved) {
+        await onRefresh();
+      }
       setSaved(alreadySaved);
       setError(alreadySaved ? "This workout has already been saved." : message);
     } finally {
