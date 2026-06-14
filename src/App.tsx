@@ -1164,7 +1164,7 @@ function ProfileFields({ profile, onChange }: { profile: ProfileDraft; onChange:
     <div className="profile-form">
       <label className="form-control wide">
         <span>Name</span>
-        <input value={profile.name} onChange={(event) => update("name", event.target.value)} placeholder="Ansh" />
+        <input value={profile.name} onChange={(event) => update("name", event.target.value)} />
       </label>
       <label className="form-control">
         <span>Gender</span>
@@ -1177,15 +1177,15 @@ function ProfileFields({ profile, onChange }: { profile: ProfileDraft; onChange:
       </label>
       <label className="form-control">
         <span>Age</span>
-        <input value={profile.age} onChange={(event) => update("age", event.target.value)} inputMode="numeric" placeholder="22" />
+        <input value={profile.age} onChange={(event) => update("age", event.target.value)} inputMode="numeric" />
       </label>
       <label className="form-control">
-        <span>Height</span>
-        <input value={profile.height_cm} onChange={(event) => update("height_cm", event.target.value)} inputMode="numeric" placeholder="175 cm" />
+        <span>Height (cm)</span>
+        <input value={profile.height_cm} onChange={(event) => update("height_cm", event.target.value)} inputMode="numeric" />
       </label>
       <label className="form-control">
-        <span>Weight</span>
-        <input value={profile.weight_kg} onChange={(event) => update("weight_kg", event.target.value)} inputMode="numeric" placeholder="70 kg" />
+        <span>Weight (kg)</span>
+        <input value={profile.weight_kg} onChange={(event) => update("weight_kg", event.target.value)} inputMode="numeric" />
       </label>
     </div>
   );
