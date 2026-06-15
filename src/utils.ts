@@ -68,8 +68,9 @@ export function minutesForDay(day: PlanDay | null) {
 }
 
 export function safetyText(plan: Plan | null) {
-  const notes = plan?.params.feasibility_notes ?? [];
-  if (notes.length > 0) return notes[0];
+  if (plan?.params.feasibility_notes?.length) {
+    return "FitEngine adjusted this plan to match your available exercises, time, and safety rules.";
+  }
   return "FitEngine filtered this plan with your equipment, level, and safety rules.";
 }
 

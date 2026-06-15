@@ -727,7 +727,6 @@ function TodayScreen({ plan }: { plan: Plan }) {
         </div>
         <WorkoutList day={day} selected={selected} onSelect={setSelected} />
         <div className="panel note-strip"><ShieldCheck size={18} /> {safetyText(plan)}</div>
-        {(plan.params.feasibility_notes ?? []).slice(1, 4).map((note) => <p className="tiny-note" key={note}>{note}</p>)}
       </div>
       <aside className="panel detail-panel">
         <ExerciseMedia exercise={selected?.exercise ?? null} />
@@ -863,7 +862,6 @@ function PlanScreen({ plan, onPlan }: { plan: Plan; onPlan: (plan: Plan) => void
           </div>
         ))}
         <div className="safety-note"><ShieldCheck size={18} /> Generate next week uses completed/skipped workouts and RPE. Without logs, it may look similar.</div>
-        {(viewPlan.params.feasibility_notes ?? []).slice(0, 3).map((note) => <p className="tiny-note" key={note}>{note}</p>)}
       </aside>
     </section>
   );
