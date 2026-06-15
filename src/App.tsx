@@ -726,6 +726,7 @@ function TodayScreen({ plan }: { plan: Plan }) {
           </div>
         </div>
         <WorkoutList day={day} selected={selected} onSelect={setSelected} />
+        <InstructionPanel exercise={selected?.exercise ?? null} />
         <div className="panel note-strip"><ShieldCheck size={18} /> {safetyText(plan)}</div>
       </div>
       <aside className="panel detail-panel">
@@ -1147,6 +1148,28 @@ function WorkoutList({ day, selected, onSelect }: { day: PlanDay; selected?: Pla
           </span>
         </div>
       ))}
+    </div>
+  );
+}
+
+function InstructionPanel({ exercise }: { exercise: Exercise | null }) {
+  const instructions = exercise?.instructions ?? [];
+
+  return (
+    <div className="panel instruction-panel">
+      <div>
+        <span className="section-kicker">Instructions</span>
+        <h2>{exercise ? `How to do ${exercise.name}` : "Select an exercise"}</h2>
+      </div>
+      {instructions.length > 0 ? (
+        <ol>
+          {instructions.map((step, index) => (
+            <li key={`${exercise?.id ?? "exercise"}-${index}`}>{step}</li>
+          ))}
+        </ol>
+      ) : (
+        <p className="helper">Choose an exercise to see step-by-step instructions.</p>
+      )}
     </div>
   );
 }

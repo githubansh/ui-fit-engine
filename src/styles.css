@@ -549,6 +549,37 @@ select:focus {
   box-shadow: none;
 }
 
+.instruction-panel {
+  margin-top: 16px;
+  padding: 18px;
+  box-shadow: none;
+}
+
+.section-kicker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.instruction-panel h2 {
+  margin-bottom: 12px;
+}
+
+.instruction-panel ol {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-left: 22px;
+}
+
+.instruction-panel li {
+  color: var(--text);
+  line-height: 1.55;
+}
+
 .metric-guide {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
