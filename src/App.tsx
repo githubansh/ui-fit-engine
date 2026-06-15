@@ -44,7 +44,6 @@ export default function App() {
   const navigate = useNavigate();
   const [{ userId, planId }, setSessionState] = useState(getSession);
   const [plan, setPlan] = useState<Plan | null>(null);
-  const [health, setHealth] = useState("checking");
   const [sessionReady, setSessionReady] = useState(() => !getSession().planId);
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,13 +80,12 @@ export default function App() {
   }
 
   useEffect(() => {
-    api.health().then((item) => setHealth(item.embeddings)).catch(() => setHealth("offline"));
     loadPlan();
   }, []);
 
   return (
     <div className="app">
-      <Header plan={plan} health={health} />
+      <Header plan={plan} />
       {error && <div className="app-alert">{error}</div>}
       {loadingPlan && <div className="app-alert muted">Loading your plan...</div>}
       <main>
@@ -108,7 +106,7 @@ export default function App() {
     </div>
   );
 
-  function Header({ plan, health }: { plan: Plan | null; health: string }) {
+  function Header({ plan }: { plan: Plan | null }) {
     return (
       <header className="topbar">
         <Link to={plan ? "/today" : "/setup"} className="brand">
@@ -127,7 +125,6 @@ export default function App() {
         )}
         <div className="top-meta">
           <span className="badge neutral">Prototype</span>
-          <span className={health === "ok" ? "badge ok" : "badge warn"}>Embeddings {health}</span>
         </div>
       </header>
     );
